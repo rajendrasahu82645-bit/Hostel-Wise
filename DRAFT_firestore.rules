@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Global Safety Net ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // RBAC - Fetches role from user document
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function hasRole(role) {
+      return isSignedIn() && getUserRole() == role;
+    }
+
+    function isAdmin() { return hasRole('admin'); }
+    function isWarden() { return hasRole('warden'); }
+    function isStudent() { return hasRole('student'); }
+
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.role in ['admin', 'warden', 'student'];
+    }
+
+    function isValidStudentProfile(data) {
+      return data.keys().hasAll(['userId', 'studentId', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.studentId is string && data.studentId.size() <= 64 &&
+             data.status in ['active', 'withdrawn', 'graduated'];
+    }
+
+    function isValidHostel(data) {
+      return data.keys().hasAll(['id', 'name']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 128;
+    }
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['id', 'hostelId', 'roomNumber', 'capacity', 'occupancy']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.hostelId is string &&
+             data.roomNumber is string && data.roomNumber.size() <= 32 &&
+             data.capacity is number && data.occupancy is number;
+    }
+
+    function isValidFee(data) {
+      // 'id' might be missing if using addDoc
+      return data.keys().hasAll(['studentId', 'amount', 'dueDate', 'status']) &&
+             data.studentId is string &&
+             data.amount is number && 
+             data.dueDate is string &&
+             data.status in ['pending', 'paid'];
+    }
+
+    function isValidComplaint(data) {
+      return data.keys().hasAll(['studentId', 'title', 'description', 'status']) &&
+             data.studentId == request.auth.uid &&
+             data.title is string && data.title.size() <= 256 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.status in ['pending', 'resolved'];
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'content', 'authorId', 'target']) &&
+             data.title is string && data.title.size() <= 256 &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.authorId == request.auth.uid &&
+             data.target in ['all', 'wardens', 'students'];
+    }
+
+    // --- Collection Rules ---
+
+    // Users
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isValidUser(incoming()) && (
+        isAdmin() || 
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'avatarUrl']))
+      );
+    }
+
+    // Students
+    match /students/{userId} {
+      allow read: if isSignedIn() && (isAdmin() || isWarden() || isOwner(userId));
+      // Allow user to create their own student profile if they are a student
+      allow create: if (isOwner(userId) && isValidStudentProfile(incoming())) || isAdmin() || isWarden();
+      allow update: if isValidStudentProfile(incoming()) && (isAdmin() || isWarden());
+    }
+
+    // Hostels
+    match /hostels/{hostelId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Rooms
+    match /hostels/{hostelId}/rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isWarden();
+    }
+
+    // Fees
+    match /fees/{feeId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isAdmin() || isWarden() || resource.data.userId == request.auth.uid);
+      allow write: if isAdmin() || isWarden();
+    }
+
+    // Complaints
+    match /complaints/{complaintId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden() || resource.data.studentId == request.auth.uid);
+      allow get: if isSignedIn() && (isAdmin() || isWarden() || resource.data.studentId == request.auth.uid);
+      allow create: if isSignedIn() && isValidComplaint(incoming());
+      allow update: if isValidComplaint(incoming()) && (
+        isAdmin() || isWarden() || 
+        (isOwner(existing().studentId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description']))
+      );
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isWarden()) && isValidAnnouncement(incoming());
+      allow update: if (isAdmin() || isWarden()) && isValidAnnouncement(incoming()) && existing().authorId == request.auth.uid;
+      allow delete: if isAdmin() || (isWarden() && existing().authorId == request.auth.uid);
+    }
+
+    // Attendance
+    match /attendance/{attendanceId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden() || resource.data.studentId == request.auth.uid);
+      allow get: if isSignedIn() && (isAdmin() || isWarden() || resource.data.studentId == request.auth.uid);
+      allow write: if isAdmin() || isWarden();
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "HostelWise - Integrated Hostel Management System",
+  "description": "A comprehensive hostel management solution with role-based access for Admins, Wardens, and Students. Features include room allocation, fee tracking, complaint management, and real-time announcements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

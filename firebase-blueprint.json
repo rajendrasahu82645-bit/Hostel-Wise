@@ -1,0 +1,185 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Base user profile for all roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "warden", "student"] },
+        "phone": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "hostelId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "name"]
+    },
+    "Hostel": {
+      "title": "Hostel",
+      "description": "Hostel building details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "totalRooms": { "type": "number" },
+        "wardenId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Room within a hostel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hostelId": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "capacity": { "type": "number" },
+        "occupancy": { "type": "number" },
+        "type": { "type": "string", "enum": ["AC", "Non-AC"] },
+        "price": { "type": "number" }
+      },
+      "required": ["id", "hostelId", "roomNumber", "capacity", "occupancy"]
+    },
+    "StudentProfile": {
+      "title": "Student Profile",
+      "description": "Extended details for student role",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "course": { "type": "string" },
+        "guardianName": { "type": "string" },
+        "guardianPhone": { "type": "string" },
+        "roomId": { "type": "string" },
+        "hostelId": { "type": "string" },
+        "joinDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "withdrawn", "graduated"] }
+      },
+      "required": ["userId", "studentId", "status"]
+    },
+    "FeeRecord": {
+      "title": "Fee Record",
+      "description": "Financial record for hostel fees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "amount": { "type": "number" },
+        "month": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "paymentDate": { "type": "string", "format": "date-time" },
+        "transactionId": { "type": "string" }
+      },
+      "required": ["id", "studentId", "amount", "month", "status"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Student complaint or request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "hostelId": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in-progress", "resolved"] },
+        "resolution": { "type": "string" },
+        "resolvedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "studentId", "subject", "description", "status"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "System-wide or hostel-specific notice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "target": { "type": "string", "enum": ["all", "wardens", "students"] },
+        "hostelId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "content", "authorId", "target"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily attendance marking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "hostelId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["present", "absent"] },
+        "markedBy": { "type": "string" }
+      },
+      "required": ["id", "studentId", "date", "status"]
+    },
+    "Visitor": {
+      "title": "Visitor",
+      "description": "Log of external visitors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "purpose": { "type": "string" },
+        "studentId": { "type": "string" },
+        "entryTime": { "type": "string", "format": "date-time" },
+        "exitTime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "exited"] }
+      },
+      "required": ["name", "phone", "studentId", "entryTime", "status"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Global user profiles"
+    },
+    "hostels": {
+      "schema": "Hostel",
+      "description": "List of hostels managed by the system"
+    },
+    "hostels/{hostelId}/rooms": {
+      "schema": "Room",
+      "description": "Rooms within a specific hostel"
+    },
+    "students": {
+      "schema": "StudentProfile",
+      "description": "Detailed student information"
+    },
+    "fees": {
+      "schema": "FeeRecord",
+      "description": "Hostel fee payments"
+    },
+    "complaints": {
+      "schema": "Complaint",
+      "description": "Student grievances and requests"
+    },
+    "announcements": {
+      "schema": "Announcement",
+      "description": "Official notices"
+    },
+    "attendance": {
+      "schema": "Attendance",
+      "description": "Daily student presence tracking"
+    },
+    "visitors": {
+      "schema": "Visitor",
+      "description": "Visitor access logs"
+    }
+  }
+}

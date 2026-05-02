@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Helpers ---
+    function isSignedIn() { return true; } // Bypassed for demo mode
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function isOwner(userId) {
+      return true; // Bypassed for demo mode
+    }
+
+    // RBAC - Bypassed for demo mode
+    function isAdmin() { return true; }
+    function isWarden() { return true; }
+    function isStudent() { return true; }
+
+    // --- Validation Helpers ---
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role']) &&
+             data.email is string && data.email.size() <= 256 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.role in ['admin', 'warden', 'student'];
+    }
+
+    function isValidStudentProfile(data) {
+      return data.keys().hasAll(['userId', 'studentId', 'status']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 64 &&
+             data.status in ['active', 'withdrawn', 'graduated'];
+    }
+
+    function isValidComplaint(data) {
+      return data.keys().hasAll(['studentId', 'subject', 'description', 'status']) &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.subject is string && data.subject.size() <= 256 &&
+             data.description is string && data.description.size() <= 5000 &&
+             data.status in ['open', 'in-progress', 'resolved'];
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'content', 'authorId', 'target']) &&
+             data.title is string && data.title.size() <= 256 &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.authorId is string &&
+             data.target in ['all', 'wardens', 'students'];
+    }
+
+    function isValidVisitor(data) {
+      return data.keys().hasAll(['name', 'phone', 'purpose', 'studentId', 'entryTime', 'status']) &&
+             data.name is string && data.name.size() <= 128 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.purpose is string && data.purpose.size() <= 500 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.status in ['active', 'exited'];
+    }
+
+    // --- Collection Rules ---
+
+    // Users
+    match /users/{userId} {
+      allow get: if isSignedIn() && (isAdmin() || isWarden());
+      allow list: if isAdmin() || isWarden();
+      
+      allow create: if true;
+      allow update: if (isAdmin() || isWarden()) && isValidUser(incoming());
+    }
+
+    // Students
+    match /students/{userId} {
+      allow read: if isSignedIn() && (isAdmin() || isWarden());
+      allow create: if (isAdmin() || isWarden()) && isValidStudentProfile(incoming());
+      allow update: if (isAdmin() || isWarden()) && isValidStudentProfile(incoming());
+    }
+
+    // Hostels
+    match /hostels/{hostelId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+      
+      match /rooms/{roomId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() || isWarden();
+      }
+    }
+
+    // Individual collection matches for sub-paths if accessed directly
+    match /hostels/{hostelId}/rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isWarden();
+    }
+
+    // Fees
+    match /fees/{feeId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden());
+      allow get: if isSignedIn() && (isAdmin() || isWarden());
+      allow create: if isAdmin() || isWarden();
+      allow update: if (isAdmin() || isWarden()) && (incoming().amount == existing().amount || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Complaints
+    match /complaints/{complaintId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden());
+      allow get: if isSignedIn() && (isAdmin() || isWarden());
+      allow create: if isSignedIn() && isValidComplaint(incoming());
+      allow update: if (isAdmin() || isWarden()) && 
+                    isValidComplaint(incoming());
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isWarden()) && isValidAnnouncement(incoming());
+      allow update: if (isAdmin() || isWarden()) && isValidAnnouncement(incoming());
+      allow delete: if isAdmin() || isWarden();
+    }
+
+    // Attendance
+    match /attendance/{attendanceId} {
+      allow list: if isSignedIn() && (isAdmin() || isWarden());
+      allow get: if isSignedIn() && (isAdmin() || isWarden());
+      allow write: if isAdmin() || isWarden();
+    }
+
+    // Visitors
+    match /visitors/{visitorId} {
+      allow read: if isSignedIn() && (isAdmin() || isWarden());
+      allow create: if (isAdmin() || isWarden()) && isValidVisitor(incoming());
+      allow update: if (isAdmin() || isWarden()) && isValidVisitor(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // --- Global Safety Net (Final Deny) ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
