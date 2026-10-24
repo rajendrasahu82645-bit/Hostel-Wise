@@ -47,7 +47,7 @@ const LoginPage = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 text-indigo-400 mb-6">
             <ShieldCheck size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">HostelWise</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">HostelHub</h1>
           <p className="text-gray-400">System Access Portal</p>
         </div>
 
