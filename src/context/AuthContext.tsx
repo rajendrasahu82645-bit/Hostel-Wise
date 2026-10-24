@@ -1,7 +1,35 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { User } from "firebase/auth";
+
+const DEMO_NAMES: Record<"admin" | "warden" | "student", Record<string, string>> = {
+  admin: {
+    default: "Admin Manager",
+  },
+  warden: {
+    default: "Warden Aisha",
+  },
+  student: {
+    "2220": "Aarav Sharma",
+    "2201": "Nisha Gupta",
+    "2215": "Rohan Patel",
+    default: "Student User",
+  },
+};
+
+const resolveDemoName = (userId: string, targetRole: "admin" | "warden" | "student") => {
+  const normalizedId = userId.trim();
+  const roleMap = DEMO_NAMES[targetRole];
+
+  if (normalizedId && roleMap[normalizedId]) {
+    return roleMap[normalizedId];
+  }
+
+  if (normalizedId) {
+    return targetRole === "student" ? `Student ${normalizedId}` : normalizedId;
+  }
+
+  return roleMap.default;
+};
 
 interface AuthContextType {
   user: User | null;
@@ -33,19 +61,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginAs = (userId: string, targetRole: "admin" | "warden" | "student") => {
-    // Generate a demo uid based on userId or targetRole
+    const resolvedName = resolveDemoName(userId, targetRole);
     const uid = userId ? `demo-${userId.toLowerCase().replace(/\W+/g, '-')}` : `demo-${targetRole}`;
-    setUser({ 
-      uid: uid,
-      email: targetRole + "@hostelwise.com", 
-      displayName: userId || (targetRole.charAt(0).toUpperCase() + targetRole.slice(1))
+
+    setUser({
+      uid,
+      email: `${targetRole}@hostelwise.com`,
+      displayName: resolvedName,
     } as User);
+
     setRole(targetRole);
-    setUserData({ 
-      name: userId || (targetRole.charAt(0).toUpperCase() + targetRole.slice(1)), 
-      role: targetRole, 
-      email: targetRole + "@hostelwise.com",
-      userId: userId
+    setUserData({
+      name: resolvedName,
+      role: targetRole,
+      email: `${targetRole}@hostelwise.com`,
+      userId: userId,
     });
   };
 
