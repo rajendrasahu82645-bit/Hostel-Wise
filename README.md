@@ -7,6 +7,12 @@ Hostel-Wise is a web-based hostel management app with role-specific dashboards f
 - Role-based dashboards and access
 - Student, hostel, and room management
 - Fee, complaint, attendance, announcement, visitor, and security pages
+- Reports and analytics for student, room, fee, and attendance metrics
+- Visitor registration with check-in/check-out tracking and warden approval workflow
+- Notice & notification board for hostel announcements, reminders, and maintenance updates
+- Mess management with weekly menu, meal preferences, fee records, and feedback
+- Attendance and outpass tracking with leave requests and late-return monitoring
+- Export-ready analytics reports to PDF and Excel
 - Responsive interface
 
 ## Technologies

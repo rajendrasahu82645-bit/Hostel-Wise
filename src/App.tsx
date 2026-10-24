@@ -18,6 +18,9 @@ import AttendancePage from "./pages/AttendancePage";
 import AnnouncementPage from "./pages/AnnouncementPage";
 import VisitorManagement from "./pages/VisitorManagement";
 import SecurityPage from "./pages/SecurityPage";
+import ReportsPage from "./pages/ReportsPage";
+import MessManagement from "./pages/MessManagement";
+import OutpassPage from "./pages/OutpassPage";
 import LoginPage from "./pages/LoginPage";
 
 import { ShieldAlert } from "lucide-react";
@@ -163,6 +166,27 @@ function App() {
             <ProtectedRoute>
               <DashboardLayout>
                 <SecurityPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/reports" element={
+            <ProtectedRoute allowedRoles={['admin', 'warden']}>
+              <DashboardLayout>
+                <ReportsPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/mess" element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MessManagement />
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/outpass" element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <OutpassPage />
               </DashboardLayout>
             </ProtectedRoute>
           } />

@@ -16,7 +16,10 @@ import {
   User as UserIcon,
   Bell,
   ShieldCheck,
-  Lock
+  Lock,
+  BarChart3,
+  UtensilsCrossed,
+  ClipboardCheck
 } from "lucide-react";
 import { auth } from "../../lib/firebase";
 import { useAuth } from "../../context/AuthContext";
@@ -66,10 +69,13 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
     { to: "/admin/rooms", icon: DoorOpen, label: "Rooms", roles: ["admin", "warden"] },
     { to: "/admin/students", icon: Users, label: "Students", roles: ["admin", "warden"] },
     { to: "/attendance", icon: CalendarCheck, label: "Attendance", roles: ["admin", "warden"] },
+    { to: "/outpass", icon: ClipboardCheck, label: "Outpass", roles: ["admin", "warden", "student"] },
     { to: "/fees", icon: CreditCard, label: "Fees", roles: ["admin", "warden", "student"] },
     { to: "/complaints", icon: MessageSquare, label: "Complaints", roles: ["admin", "warden", "student"] },
     { to: "/announcements", icon: Megaphone, label: "Notices", roles: ["admin", "warden", "student"] },
+    { to: "/mess", icon: UtensilsCrossed, label: "Mess", roles: ["admin", "warden", "student"] },
     { to: "/visitors", icon: Users, label: "Visitors", roles: ["admin", "warden"] },
+    { to: "/reports", icon: BarChart3, label: "Reports", roles: ["admin", "warden"] },
     { to: "/security", icon: ShieldCheck, label: "Security", roles: ["admin", "warden", "student"] },
   ].filter(item => item.roles.includes(role || ""));
 

@@ -19,13 +19,18 @@ import { useAuth } from "../context/AuthContext";
 import { cn, formatDate, handleFirestoreError, OperationType } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
+type ComplaintCategory = 'water' | 'electricity' | 'wifi' | 'maintenance' | 'general';
+type ComplaintStatus = 'pending' | 'in-progress' | 'resolved';
+
 interface Complaint {
   id: string;
   studentId: string;
   studentName: string;
   subject: string;
   description: string;
-  status: 'open' | 'in-progress' | 'resolved';
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  assignedTo?: string;
   resolution?: string;
   createdAt: string;
   updatedAt: string;
@@ -37,10 +42,11 @@ const ComplaintManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newComplaint, setNewComplaint] = useState({ subject: "", description: "" });
+  const [newComplaint, setNewComplaint] = useState({ subject: "", description: "", category: "maintenance" as ComplaintCategory });
   const [submitting, setSubmitting] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [resolutionText, setResolutionText] = useState("");
+  const [statusUpdate, setStatusUpdate] = useState<ComplaintStatus>("pending");
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -107,13 +113,15 @@ const ComplaintManagement = () => {
         studentName: userData?.name || "Anonymous",
         subject: newComplaint.subject,
         description: newComplaint.description,
-        status: 'open',
+        category: newComplaint.category,
+        status: 'pending',
+        assignedTo: role === 'admin' ? 'Admin Desk' : 'Maintenance Team',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await addDoc(collection(db, "complaints"), complaintData)
         .catch(e => handleFirestoreError(e, OperationType.CREATE, "complaints"));
-      setNewComplaint({ subject: "", description: "" });
+      setNewComplaint({ subject: "", description: "", category: "maintenance" });
       setIsModalOpen(false);
       fetchComplaints();
     } catch (error: any) {
@@ -135,13 +143,14 @@ const ComplaintManagement = () => {
     setSubmitting(true);
     try {
       await updateDoc(doc(db, "complaints", selectedComplaint.id), {
-        status: 'resolved',
-        resolution: resolutionText,
-        resolvedBy: user?.uid,
+        status: statusUpdate,
+        resolution: resolutionText || (statusUpdate === 'resolved' ? 'Resolved by hostel administration.' : selectedComplaint.resolution || ''),
+        assignedTo: userData?.name || 'Hostel Admin',
         updatedAt: new Date().toISOString(),
       });
       setSelectedComplaint(null);
       setResolutionText("");
+      setStatusUpdate("pending");
       fetchComplaints();
     } catch (error) {
       console.error("Error resolving complaint:", error);
@@ -151,9 +160,23 @@ const ComplaintManagement = () => {
   };
 
   const statusIcons = {
-    'open': { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50" },
+    pending: { icon: AlertCircle, color: "text-rose-500", bg: "bg-rose-50" },
     'in-progress': { icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-    'resolved': { icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
+    resolved: { icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
+  } as const;
+
+  const complaintCategories = [
+    { value: 'water', label: 'Water' },
+    { value: 'electricity', label: 'Electricity' },
+    { value: 'wifi', label: 'Wi-Fi' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'general', label: 'General' },
+  ];
+
+  const statusLabels: Record<ComplaintStatus, string> = {
+    pending: 'Pending',
+    'in-progress': 'In Progress',
+    resolved: 'Resolved',
   };
 
   return (
@@ -222,20 +245,25 @@ const ComplaintManagement = () => {
               className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all flex flex-col relative group overflow-hidden"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className={cn("p-2 rounded-xl", statusIcons[complaint.status].bg, statusIcons[complaint.status].color)}>
+                <div className={cn("p-2 rounded-xl", statusIcons[complaint.status || 'pending'].bg, statusIcons[complaint.status || 'pending'].color)}>
                   <StatusIcon size={20} />
                 </div>
                 <div className="text-right">
                   <span className={cn(
                     "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded",
-                    statusIcons[complaint.status].bg, statusIcons[complaint.status].color
+                    statusIcons[complaint.status || 'pending'].bg, statusIcons[complaint.status || 'pending'].color
                   )}>
-                    {complaint.status}
+                    {statusLabels[complaint.status || 'pending']}
                   </span>
                 </div>
               </div>
 
-              <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{complaint.subject}</h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900 mb-0 line-clamp-1">{complaint.subject}</h3>
+                <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-400">
+                  {complaint.category || 'general'}
+                </span>
+              </div>
               <p className="text-sm text-gray-500 mb-6 flex-1 line-clamp-3">{complaint.description}</p>
 
               <div className="pt-4 border-t border-gray-50 flex items-center justify-between">
@@ -292,6 +320,18 @@ const ComplaintManagement = () => {
               <p className="text-gray-500 text-sm mb-8">Explain your issue clearly for faster resolution.</p>
 
               <form onSubmit={handleCreate} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Category</label>
+                  <select
+                    value={newComplaint.category}
+                    onChange={(e) => setNewComplaint({ ...newComplaint, category: e.target.value as ComplaintCategory })}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-indigo-600 transition-all font-medium"
+                  >
+                    {complaintCategories.map((category) => (
+                      <option key={category.value} value={category.value}>{category.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Subject</label>
                   <input 
@@ -362,6 +402,18 @@ const ComplaintManagement = () => {
 
               <form onSubmit={handleResolve} className="space-y-6">
                 <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Status</label>
+                  <select
+                    value={statusUpdate}
+                    onChange={(e) => setStatusUpdate(e.target.value as ComplaintStatus)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-indigo-600 transition-all font-medium"
+                  >
+                    {Object.entries(statusLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Resolution Remark</label>
                   <textarea 
                     required
@@ -369,8 +421,7 @@ const ComplaintManagement = () => {
                     placeholder="Describe how the issue was resolved..."
                     value={resolutionText}
                     onChange={(e) => setResolutionText(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-indigo-600 transition-all font-medium resize-none"
-                  />
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:bg-white focus:border-indigo-600 transition-all font-medium resize-none"                  />
                 </div>
 
                 <div className="flex gap-4">

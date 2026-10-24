@@ -57,10 +57,19 @@ const AdminDashboard = () => {
     totalStudents: 0,
     totalRooms: 0,
     totalHostels: 0,
+    vacantBeds: 0,
     pendingFees: 0,
+    monthlyCollection: 0,
     occupancyRate: 0,
     totalVisitors: 0,
+    totalComplaints: 0,
   });
+  const [recentComplaints, setRecentComplaints] = useState<any[]>([]);
+  const [recentAdmissions, setRecentAdmissions] = useState<any[]>([
+    { name: 'Aarav Sharma', hostel: 'Everest Boys Hostel', room: 'B-204', date: '2 days ago' },
+    { name: 'Nisha Gupta', hostel: 'Orchid Girls Hostel', room: 'C-101', date: '4 days ago' },
+    { name: 'Rohan Patel', hostel: 'Everest Boys Hostel', room: 'A-312', date: '1 week ago' },
+  ]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -93,16 +102,51 @@ const AdminDashboard = () => {
       try {
         const studentSnap = await getDocs(collection(db, "students")).catch(e => handleFirestoreError(e, OperationType.LIST, "students"));
         const hostelSnap = await getDocs(collection(db, "hostels")).catch(e => handleFirestoreError(e, OperationType.LIST, "hostels"));
-        const feeSnap = await getDocs(query(collection(db, "fees"), where("status", "==", "pending"))).catch(e => handleFirestoreError(e, OperationType.LIST, "fees"));
+        const feeSnap = await getDocs(collection(db, "fees")).catch(e => handleFirestoreError(e, OperationType.LIST, "fees"));
         const visitorSnap = await getDocs(collection(db, "visitors")).catch(e => handleFirestoreError(e, OperationType.LIST, "visitors"));
+        const complaintSnap = await getDocs(collection(db, "complaints")).catch(e => handleFirestoreError(e, OperationType.LIST, "complaints"));
+
+        let totalRooms = 0;
+        let totalVacantBeds = 0;
+        let roomOccupancyTotal = 0;
+        let roomCapacityTotal = 0;
+
+        for (const hostelDoc of hostelSnap.docs) {
+          const roomSnap = await getDocs(collection(db, "hostels", hostelDoc.id, "rooms")).catch(() => ({ docs: [] } as any));
+          roomSnap.docs.forEach((roomDoc: any) => {
+            const room = roomDoc.data();
+            const capacity = Number(room.capacity || 0);
+            const occupancy = Number(room.occupancy || 0);
+            totalRooms += 1;
+            roomCapacityTotal += capacity;
+            roomOccupancyTotal += occupancy;
+            totalVacantBeds += Math.max(0, capacity - occupancy);
+          });
+        }
+
+        const pendingFees = feeSnap.docs
+          .filter((docSnap) => docSnap.data().status === "pending")
+          .reduce((sum, docSnap) => sum + Number(docSnap.data().amount || 0), 0);
+
+        const monthlyCollection = feeSnap.docs
+          .filter((docSnap) => docSnap.data().status === "paid")
+          .reduce((sum, docSnap) => sum + Number(docSnap.data().amount || 0), 0);
+
+        const complaints = complaintSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        setRecentComplaints(complaints.slice(0, 3));
+
+        const occupancyRate = roomCapacityTotal > 0 ? Math.round((roomOccupancyTotal / roomCapacityTotal) * 100) : 0;
 
         setStats({
           totalStudents: studentSnap.size,
-          totalRooms: 120, // Sum this from hostels if available
+          totalRooms,
           totalHostels: hostelSnap.size,
-          pendingFees: feeSnap.docs.reduce((acc, doc) => acc + doc.data().amount, 0),
-          occupancyRate: 85,
+          vacantBeds: totalVacantBeds,
+          pendingFees,
+          monthlyCollection,
+          occupancyRate,
           totalVisitors: visitorSnap.size,
+          totalComplaints: complaints.length,
         });
       } catch (error) {
         console.error("Error fetching stats:", error);
@@ -160,7 +204,7 @@ const AdminDashboard = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <StatCard 
             title="Total Students" 
             value={stats.totalStudents} 
@@ -169,24 +213,32 @@ const AdminDashboard = () => {
             color="bg-indigo-500" 
           />
           <StatCard 
-            title="Visitor Logs" 
-            value={stats.totalVisitors} 
-            icon={Clock} 
-            trend={5} 
+            title="Rooms" 
+            value={stats.totalRooms} 
+            icon={DoorOpen} 
+            trend={4} 
+            color="bg-blue-500" 
+          />
+          <StatCard 
+            title="Vacant Beds" 
+            value={stats.vacantBeds} 
+            icon={Building2} 
+            trend={6} 
             color="bg-emerald-500" 
           />
           <StatCard 
-            title="Pending Fees" 
-            value={formatCurrency(stats.pendingFees)} 
+            title="Monthly Collection" 
+            value={formatCurrency(stats.monthlyCollection)} 
             icon={CreditCard} 
-            trend={8} 
-            color="bg-rose-500" 
+            trend={9} 
+            color="bg-amber-500" 
           />
           <StatCard 
-            title="Total Hostels" 
-            value={stats.totalHostels} 
-            icon={Building2} 
-            color="bg-amber-500" 
+            title="Pending Dues" 
+            value={formatCurrency(stats.pendingFees)} 
+            icon={Clock} 
+            trend={-3} 
+            color="bg-rose-500" 
           />
         </div>
       )}
@@ -270,31 +322,30 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Alerts / Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-[#161616] rounded-3xl border border-[#222222] shadow-sm overflow-hidden">
           <div className="px-8 py-6 border-b border-[#222222] flex items-center justify-between bg-white/[0.01]">
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Recent Complaints</h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">Attention required on these items</p>
+              <h3 className="text-lg font-bold text-white tracking-tight">Recent Admissions</h3>
+              <p className="text-xs text-gray-500 mt-1 font-medium">Newest student enrollments</p>
             </div>
             <button className="text-indigo-400 text-xs font-bold hover:text-indigo-300 transition-colors uppercase tracking-widest">View All</button>
           </div>
           <div className="divide-y divide-[#222222]">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="px-8 py-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer group">
+            {recentAdmissions.map((admission) => (
+              <div key={admission.name} className="px-8 py-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer group">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
-                    <AlertCircle size={20} />
+                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                    <Users size={18} />
                   </div>
                   <div>
-                    <h5 className="font-bold text-gray-200">Water Leakage in Room 204</h5>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Hostel A • Student ID: #2944</p>
+                    <h5 className="font-bold text-gray-200">{admission.name}</h5>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">{admission.hostel} • {admission.room}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-bold uppercase tracking-widest mb-1.5">In Progress</span>
-                  <p className="text-xs text-gray-500 font-medium">2 hours ago</p>
+                  <span className="inline-block px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-widest mb-1.5">New</span>
+                  <p className="text-xs text-gray-500 font-medium">{admission.date}</p>
                 </div>
               </div>
             ))}
@@ -317,6 +368,39 @@ const AdminDashboard = () => {
           {/* Abstract decoration */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform" />
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        </div>
+      </div>
+
+      <div className="bg-[#161616] rounded-3xl border border-[#222222] shadow-sm overflow-hidden">
+        <div className="px-8 py-6 border-b border-[#222222] flex items-center justify-between bg-white/[0.01]">
+          <div>
+            <h3 className="text-lg font-bold text-white tracking-tight">Recent Complaints</h3>
+            <p className="text-xs text-gray-500 mt-1 font-medium">Open issues needing action</p>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-rose-400">{stats.totalComplaints} total</span>
+        </div>
+        <div className="divide-y divide-[#222222]">
+          {recentComplaints.length > 0 ? recentComplaints.map((complaint) => (
+            <div key={complaint.id || complaint.subject} className="px-8 py-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer group">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h5 className="font-bold text-gray-200">{complaint.subject || 'Maintenance Issue'}</h5>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">{complaint.studentName || 'Student'} • {complaint.category || 'General'}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="inline-block px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                  {complaint.status || 'Pending'}
+                </span>
+                <p className="text-xs text-gray-500 font-medium">{complaint.createdAt ? new Date(complaint.createdAt).toLocaleDateString() : 'Today'}</p>
+              </div>
+            </div>
+          )) : (
+            <div className="px-8 py-10 text-center text-sm text-gray-500">No complaints recorded.</div>
+          )}
         </div>
       </div>
     </div>
